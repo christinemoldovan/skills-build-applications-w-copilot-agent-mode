@@ -28,22 +28,20 @@ OctoFit Tracker is a three-tier application for a school fitness program. The st
 
 ## Implementation decisions
 
-Record your plan here before editing code.
-
-- Presentation tier decision:
-- Logic tier decision:
-- Data tier decision:
-- Activity tracking approach:
-- Team management approach:
-- Leaderboard approach:
-- Workout suggestions approach:
+- Presentation tier decision: Keep route-specific rendering in the React components and use the shared API client for requests. Each route presents loading, populated, empty, and accessible error states; it does not duplicate business rules.
+- Logic tier decision: Keep Express handlers focused on HTTP input/output and place capability behavior in the backend service. Validate request data and references before persistence, returning deliberate 4xx responses instead of leaking Mongoose cast or validation errors as 500s.
+- Data tier decision: Make Mongoose schemas enforce the contract's required fields and types, default team membership to an empty array, and retain the idempotent seed behavior without deleting unrelated records.
+- Activity tracking approach: Accept user and team IDs at the API boundary, validate their format and existence, then persist references with the submitted activity type and duration. Compute points centrally as one point per minute and set `occurredAt` when the activity is created.
+- Team management approach: Require a name and mascot, default omitted members to an empty array, and preserve submitted team details and member IDs in create/list responses.
+- Leaderboard approach: Sum persisted activity points per team, sort by total points descending, and return the team name, total, and 1-based rank.
+- Workout suggestions approach: Find the user by email, prefer a workout matching their fitness goal and otherwise use recent activity to choose a focus, and include a reason tied to that goal or activity. Return a deliberate 4xx when no user matches.
 
 ## Test plan
 
-Record the commands you run and what each failure means.
+- Data-tier command: `npm run test:data --prefix octofit-tracker/backend` checks required schema fields, defaults, references, and idempotent seeding. A failure points to a model or seed contract regression.
+- API command: `npm run test:api --prefix octofit-tracker/backend` checks activity/team validation and persistence, leaderboard aggregation/ranking, and user-specific workout suggestions. A failure points to route/service behavior or its persistence contract; invalid input must not become a 5xx.
+- Frontend command: `npm test --prefix octofit-tracker/frontend` checks API-backed route content, loading/empty/error states, and accessible error announcements. A failure points to presentation behavior, request wiring, or API response handling.
+- Backend build command: `npm run build --prefix octofit-tracker/backend` checks TypeScript compilation. A failure indicates backend type errors, independent of runtime contract behavior.
+- Frontend build command: `npm run build --prefix octofit-tracker/frontend` checks TypeScript compilation and the Vite production build. A failure indicates frontend type or bundling errors, independent of contract-test behavior.
 
-- Data-tier command: `npm run test:data --prefix octofit-tracker/backend`
-- API command: `npm run test:api --prefix octofit-tracker/backend`
-- Frontend command: `npm test --prefix octofit-tracker/frontend`
-- Backend build command: `npm run build --prefix octofit-tracker/backend`
-- Frontend build command: `npm run build --prefix octofit-tracker/frontend`
+Current baseline from `npm test --prefix octofit-tracker/backend` and `npm test --prefix octofit-tracker/frontend`: backend has 8 failing tests and 1 passing test (the idempotent seed test); frontend has 15 failing tests. Backend failures cover missing required model validation, activity/team requests returning 501 instead of deliberate 4xx responses, an empty leaderboard, and a workout suggestion reason that does not explain the matched activity. Frontend failures cover missing API-backed content and user-specific workout requests, plus missing loading, meaningful empty, and accessible API error states on all four routes. Re-run the focused commands above after each tier is implemented; the full suites are the final contract check.
